@@ -41,6 +41,24 @@ The script does not decrypt or download anything and only reads the files it is 
 
 ## Usage
 
+Install into the Core of Light folder itself, and undo it:
+
+```
+python3 imagipatcher.py --wiiu "<extracted Imaginators Wii U>" --install "<Core of Light Imaginators folder>"
+python3 imagipatcher.py --uninstall "<Core of Light Imaginators folder>"
+```
+
+- `--install` converts, copies the files into `rom/archives` and sets the memory pools, the video
+  memory budget and `portal_menu_nintendo`. Everything it replaces goes into `imagipatcher-backup` in
+  the game folder, with a `manifest.json` of every change. Running it again first puts the originals
+  back, so it also updates an install.
+- `--uninstall` puts the original files and settings back and removes the backup folder. A file that
+  something else changed after the install (a Core of Light update, a file check) is left as it is.
+- While working the script prints lines like `PROGRESS 5/11 sound banks: Bowser`, for a front end
+  that shows how far it is.
+
+Or write the converted files to a folder, optionally with a separate test installation:
+
 ```
 python3 imagipatcher.py --wiiu "<extracted Imaginators Wii U>" \
     --x360 "<Core of Light folder with Imaginators>" \
@@ -57,9 +75,6 @@ python3 imagipatcher.py --wiiu "<extracted Imaginators Wii U>" \
 - `--apply-config "<Core of Light folder>"`: only sets `rom/MemoryPoolConfigs.igx`,
   `rom/VramBudget.igx` and `portal_menu_nintendo` in an existing installation, keeping the originals as
   `.orig`. Run it again if a Core of Light update replaces those files.
-
-To install into the Core of Light folder itself, copy the files from `<output>/archives` into
-`rom/archives` (keep a copy of the originals you replace) and run `--apply-config` on that folder.
 
 Every file written is checked again: format, archive indexes and, for audio, a full decode with ffmpeg.
 If a check fails the script stops.
