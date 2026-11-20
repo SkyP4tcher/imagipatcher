@@ -33,7 +33,7 @@ import install as inst
 from igz import fnv1a
 
 ALL_LANGS = conv.ALL_LANGS
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 BACKUP_NAME = 'imagipatcher-backup'      # inside the game folder, made by --install
 
 # ---------------------------------------------------------------- content
@@ -68,20 +68,30 @@ VRAM_NAME = 'VramBudget.igx'
 VRAM_XENON = {'_character': '14', '_vehicle': '14'}   # MB per character and vehicle (was 8 and 10)
 # Imaginators reads the character and vehicle slot sizes from rom/MemoryPoolConfigs.igx (SuperChargers has
 # them in the executable). The character data slot gets 1.5 MB more and the vehicle data slot 1 MB more,
-# enough for the larger character and vehicle. All these pools sit in a fixed area: the space comes from
-# the Story mode sound sample pool (3 MB less). Making the area itself bigger freezes the game at startup.
+# enough for the larger character and vehicle. All these pools are cut from one heap of fixed size.
+# Older Core of Light builds: the space comes from the Story mode sound sample pool (3 MB less), because
+# making the area bigger freezes the game at startup. Builds whose executable knows game_heap_extra
+# (["Mods"] in the toml) make the heap bigger: the area gets 3 MB more, the heap 4 MB (1 MB more than
+# what the area gets) and the sound pool stays as it is.
 MEMPOOL_NAME = 'MemoryPoolConfigs.igx'
-# (object, field, original value, new value); field None = the IG_CORE_PLATFORM_XENON entry
-MEMPOOL_XENON = [('ShapeshifterDataLegsBudget_Story', None, 1587200, 3145728),
-                 ('ShapeshifterDataLegsBudget_ActionPack', None, 1587200, 3145728),
-                 ('VehicleDataBudget', None, 1843200, 2891776),
-                 ('MemoryPool_Story_xenon_MP_SOUND_SAMPLE', '_poolSize', 18874368, 15728640)]
+HEAP_SETTING = b'game_heap_extra'
+HEAP_EXTRA = '0x400000'
+# (object, field, original value, new value, new value with game_heap_extra);
+# field None = the IG_CORE_PLATFORM_XENON entry
+MEMPOOL_XENON = [('ShapeshifterDataLegsBudget_Story', None, 1587200, 3145728, 3145728),
+                 ('ShapeshifterDataLegsBudget_ActionPack', None, 1587200, 3145728, 3145728),
+                 ('VehicleDataBudget', None, 1843200, 2891776, 2891776),
+                 ('MemoryPool_xenon_MP_GAME_MODE_RESIZABLE', '_poolSize', 70414464, 70414464, 73560064),
+                 ('MemoryPool_Story_xenon_MP_SOUND_SAMPLE', '_poolSize', 18874368, 15728640, 18874368)]
 
 
-def patch_mempool(b):
-    """Character slot and the pool that pays for it, Xbox 360 values. Returns (bytes or None, message)."""
+def patch_mempool(b, heap=False):
+    """Character and vehicle slots and the pool that pays for them, Xbox 360 values. heap = the
+    executable reads game_heap_extra. A file already changed by either way is accepted too.
+    Returns (bytes or None, message)."""
     t = b.decode('utf-8')
-    for ref, field, old, new in MEMPOOL_XENON:
+    for ref, field, *values in MEMPOOL_XENON:
+        new = values[2] if heap else values[1]
         m = re.search(r'<object [^>]*refname="%s"[^>]*>.*?</object>' % ref, t, re.S)
         if not m:
             return None, 'memory pools NOT modified: %s not found' % ref
@@ -90,11 +100,19 @@ def patch_mempool(b):
             v = re.search(r'<dictitem key="IG_CORE_PLATFORM_XENON" value="(\d+)"', blk)
         else:
             v = re.search(r'<var name="%s" value="(\d+)"' % field, blk)
-        if not v or int(v.group(1)) not in (old, new):
+        if not v or int(v.group(1)) not in values:
             return None, 'memory pools NOT modified: unexpected value in %s' % ref
         blk = blk[:v.start(1)] + str(new) + blk[v.end(1):]
         t = t[:m.start()] + blk + t[m.end():]
+    if heap:
+        return t.encode('utf-8'), ('memory pools: character slot +1.5 MB, vehicle slot +1 MB, from 3 MB more '
+                                   'game area (game_heap_extra = %s)' % HEAP_EXTRA)
     return t.encode('utf-8'), 'memory pools: character slot +1.5 MB, vehicle slot +1 MB, from the Story sound sample pool'
+
+
+def exe_knows_heap(root):
+    exe = os.path.join(root, EXE_NAME)
+    return os.path.exists(exe) and HEAP_SETTING in open(exe, 'rb').read()
 
 
 def patch_vram(b):
@@ -453,7 +471,8 @@ def apply_config(root, backup=True):
     if not os.path.exists(mp):
         raise SystemExit('%s not found in %s' % (MEMPOOL_NAME, os.path.join(root, 'rom')))
     t = open(mp, 'rb').read()
-    patched, m = patch_mempool(t)
+    heap = exe_knows_heap(root)
+    patched, m = patch_mempool(t, heap)
     if patched and patched != t:
         rewrite(mp, patched, backup)
     msgs.append(m)
@@ -468,6 +487,8 @@ def apply_config(root, backup=True):
     if os.path.exists(toml):
         t = open(toml, encoding='utf-8').read()
         new = toml_portal(t)
+        if heap and patched:
+            new = inst.toml_set(new, 'Mods', 'game_heap_extra', HEAP_EXTRA)
         if new != t:
             rewrite(toml, new.encode('utf-8'), backup)
         msgs.append('%s: portal_menu_nintendo = true' % TOML_NAME)
@@ -481,11 +502,16 @@ def install_into(root, out_arch, report_lines):
     for f in sorted(os.listdir(out_arch)):
         ins.put(os.path.join('rom', 'archives', f), open(os.path.join(out_arch, f), 'rb').read())
     msgs = []
+    heap = exe_knows_heap(root)
+    pools = []
     def mempool(b):
-        patched, m = patch_mempool(b)
+        patched, m = patch_mempool(b, heap)
         msgs.append(m)
+        pools.append(patched)
         return patched
     ins.edit(os.path.join('rom', MEMPOOL_NAME), mempool)
+    if heap and pools and pools[0]:      # the bigger heap only goes with the pools that use it
+        ins.setting(TOML_NAME, 'Mods', 'game_heap_extra', HEAP_EXTRA)
     ins.edit(os.path.join('rom', VRAM_NAME), patch_vram)
     ins.setting(TOML_NAME, 'Portal', 'portal_menu_nintendo', 'true')
     open(os.path.join(ins.backup, 'summary.txt'), 'w', encoding='utf-8').write('\n'.join(report_lines + msgs) + '\n')

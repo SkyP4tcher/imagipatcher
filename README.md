@@ -24,7 +24,10 @@ script also works with other releases, which however have not been tested in gam
 - The character and vehicle data slots are too small for these toys on Xbox 360. The script raises them
   by 1.5 MB and 1 MB in `rom/MemoryPoolConfigs.igx`. All these pools share a fixed memory area, so the
   space is taken from the Story mode sound sample pool (18 MB to 15 MB). No missing sounds have been
-  noticed so far.
+  noticed so far. Core of Light builds that read `game_heap_extra` (`["Mods"]` in
+  `imaginatorsrecomp.toml`) get a bigger area instead: `--install` and `--apply-config` set
+  `game_heap_extra = 0x400000`, make `MP_GAME_MODE_RESIZABLE` 3 MB bigger and leave the sound pool at
+  18 MB. This has not been tested in game yet, since that build is not out.
 - Imaginators has no driver challenges, so the Wii U challenge files are not used.
 - Both vehicles have been raced; other uses have not been checked.
 - Two players at once have not been tested.
