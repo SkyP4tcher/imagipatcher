@@ -27,7 +27,7 @@ script also works with other releases, which however have not been tested in gam
   noticed so far. Core of Light builds that read `game_heap_extra` (`["Mods"]` in
   `imaginatorsrecomp.toml`) get a bigger area instead: `--install` and `--apply-config` set
   `game_heap_extra = 0x400000`, make `MP_GAME_MODE_RESIZABLE` 3 MB bigger and leave the sound pool at
-  18 MB. This has not been tested in game yet, since that build is not out.
+  18 MB. Tested in game with Imaginators 0.6.0-beta.3.
 - Imaginators has no driver challenges, so the Wii U challenge files are not used.
 - Both vehicles have been raced; other uses have not been checked.
 - Two players at once have not been tested.

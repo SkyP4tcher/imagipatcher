@@ -33,7 +33,7 @@ import install as inst
 from igz import fnv1a
 
 ALL_LANGS = conv.ALL_LANGS
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 BACKUP_NAME = 'imagipatcher-backup'      # inside the game folder, made by --install
 
 # ---------------------------------------------------------------- content
@@ -74,7 +74,9 @@ VRAM_XENON = {'_character': '14', '_vehicle': '14'}   # MB per character and veh
 # (["Mods"] in the toml) make the heap bigger: the area gets 3 MB more, the heap 4 MB (1 MB more than
 # what the area gets) and the sound pool stays as it is.
 MEMPOOL_NAME = 'MemoryPoolConfigs.igx'
-HEAP_SETTING = b'game_heap_extra'
+# The Windows build keeps the setting's name in the code (too short for a string of its own), so its log
+# line is looked for too.
+HEAP_MARKS = (b'game_heap_extra', b'Mods: game heap')
 HEAP_EXTRA = '0x400000'
 # (object, field, original value, new value, new value with game_heap_extra);
 # field None = the IG_CORE_PLATFORM_XENON entry
@@ -112,7 +114,10 @@ def patch_mempool(b, heap=False):
 
 def exe_knows_heap(root):
     exe = os.path.join(root, EXE_NAME)
-    return os.path.exists(exe) and HEAP_SETTING in open(exe, 'rb').read()
+    if not os.path.exists(exe):
+        return False
+    b = open(exe, 'rb').read()
+    return any(m in b for m in HEAP_MARKS)
 
 
 def patch_vram(b):
