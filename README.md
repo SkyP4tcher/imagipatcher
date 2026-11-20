@@ -1,6 +1,6 @@
 # imagipatcher
 
-**Pre-release.** A patch for **Skylanders Imaginators** (Xbox 360) that adds the content released only on
+A patch for **Skylanders Imaginators** (Xbox 360) that adds the content released only on
 the Wii U version: two characters with their variants and their vehicles. It is the Imaginators
 counterpart of [superpatcher](https://github.com/SkyP4tcher/superpatcher) and uses the same converters.
 
